@@ -8,7 +8,7 @@ import socket
 import subprocess
 
 timestart = datetime.now()
-USER_AGENT = "PostmanRuntime-ApipostRuntime/1.1.0"
+USER_AGENT = "okhttp/3.15.0"
 TIMEOUT_CHECK = 5
 TIMEOUT_FETCH = 8
 MAX_WORKERS = 30
@@ -41,11 +41,30 @@ def read_txt_file(file_path):
         print(f"Read file error {file_path}: {e}")
         return []
 
-def get_host_from_url(url: str) -> str:
-    try:
-        return urlparse(url).netloc or ""
-    except Exception:
-        return ""
+def get_host_from_url(url):
+    parsed = urllib.parse.urlparse(url)
+    host = parsed.netloc
+    if host.startswith('[') and host.endswith(']'):
+        host = host[1:-1]
+    return host
+
+def create_ipv6_connection(address, timeout=None, source_address=None):
+    host, port = address
+    for res in socket.getaddrinfo(host, port, socket.AF_INET6, socket.SOCK_STREAM):
+        af, socktype, proto, canonname, sa = res
+        try:
+            sock = socket.socket(af, socktype, proto)
+            if timeout is not None:
+                sock.settimeout(timeout)
+            if source_address:
+                sock.bind(source_address)
+            sock.connect(sa)
+            return sock
+        except OSError:
+            if sock:
+                sock.close()
+            continue
+    return socket.create_connection(address, timeout, source_address)
 
 def record_host(host):
     if not host:
@@ -102,7 +121,7 @@ def check_rtp_url(url, timeout):
         host, port = parsed.hostname, parsed.port
         if not host or not port:
             return False
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        with socket.socket(socket.AF_UNSPEC, socket.SOCK_DGRAM) as s:
             s.settimeout(timeout)
             s.connect((host, port))
             s.sendto(b'', (host, port))
@@ -111,17 +130,20 @@ def check_rtp_url(url, timeout):
     except Exception:
         return False
 
-# 核心修复：重构check_url，所有协议统一统计真实耗时
 def check_url(url, timeout=TIMEOUT_CHECK):
     try:
         encoded_url = quote(unquote(url), safe=':/?&=')
-        start_time = time.time()  # 移到try内，检测开始才计时（修复非HTTP协议计时异常）
-        # 按协议分支检测
+        start_time = time.time()
         if url.startswith("http"):
+            original_create_connection = socket.create_connection
+            socket.create_connection = create_ipv6_connection
+            
             req = urllib.request.Request(encoded_url, headers={"User-Agent": USER_AGENT})
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 if resp.status != 200:
                     raise Exception(f"HTTP Status Error: {resp.status}")
+            
+            socket.create_connection = original_create_connection
         elif url.startswith("p3p"):
             if not check_p3p_url(encoded_url, timeout):
                 raise Exception("P3P Check Failed")
@@ -135,8 +157,9 @@ def check_url(url, timeout=TIMEOUT_CHECK):
             if not check_rtp_url(encoded_url, timeout):
                 raise Exception("RTP Check Failed")
         else:
-            raise Exception(f"Unsupported Scheme: {url.split('://')[0]}")
-        # 所有协议检测成功后，统一计算真实耗时
+            scheme = url.split('://')[0] if '://' in url else 'unknown'
+            raise Exception(f"Unsupported Scheme: {scheme}")
+        
         real_elapsed = (time.time() - start_time) * 1000
         return real_elapsed, True
     except Exception:
@@ -210,7 +233,6 @@ def remove_duplicates_url(lines):
                 newlines.append(line)
     return newlines
 
-# 真实耗时
 def process_line(line, whitelist):
     if "#genre#" in line or "://" not in line or not line.strip():
         return None, None
@@ -220,15 +242,11 @@ def process_line(line, whitelist):
     name, url = parts
     url = url.strip()
     
-    # 执行一次check_url检测，避免重复请求
     elapsed_time, is_valid = check_url(url)
     
-    # 按是否是白名单，分别处理结果（完全保留原需求逻辑）
     if url in whitelist:
-        # 白名单：成功返真实耗时，失败兜底0.01ms（保留，不进黑名单）
         return (elapsed_time if is_valid else 0.01, line)
     else:
-        # 非白名单：成功返真实耗时，失败返None（进黑名单）
         return (elapsed_time, line) if is_valid else (None, line)
 
 def process_urls_multithreaded(lines, whitelist, max_workers=MAX_WORKERS):
@@ -244,7 +262,6 @@ def process_urls_multithreaded(lines, whitelist, max_workers=MAX_WORKERS):
                     successlist.append(f"{elapsed:.2f}ms,{result}")
                 else:
                     blacklist.append(result)
-    # 按真实响应时间升序排序，兜底0.01ms的白名单链接会排在最前
     successlist.sort(key=lambda x: float(x.split(',')[0].replace('ms', '')))
     blacklist.sort()
     return successlist, blacklist
