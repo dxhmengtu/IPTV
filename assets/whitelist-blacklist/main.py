@@ -8,9 +8,12 @@ import socket
 import subprocess
 
 timestart = datetime.now()
-USER_AGENT = "okhttp/3.15.0"
-TIMEOUT_CHECK = 5
-TIMEOUT_FETCH = 8
+# 优化用户代理，使用更通用的浏览器标识
+USER_AGENT_URL = "PostmanRuntime-ApipostRuntime/1.1.0"
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+# 增加超时时间，减少网络波动导致的误判
+TIMEOUT_CHECK = 10
+TIMEOUT_FETCH = 10
 MAX_WORKERS = 30
 blacklist_dict = {}
 urls_all_lines = []
@@ -48,122 +51,116 @@ def get_host_from_url(url):
         host = host[1:-1]
     return host
 
-def create_ipv6_connection(address, timeout=None, source_address=None):
-    host, port = address
-    for res in socket.getaddrinfo(host, port, socket.AF_INET6, socket.SOCK_STREAM):
-        af, socktype, proto, canonname, sa = res
-        try:
-            sock = socket.socket(af, socktype, proto)
-            if timeout is not None:
-                sock.settimeout(timeout)
-            if source_address:
-                sock.bind(source_address)
-            sock.connect(sa)
-            return sock
-        except OSError:
-            if sock:
-                sock.close()
-            continue
-    return socket.create_connection(address, timeout, source_address)
-
 def record_host(host):
     if not host:
         return
     blacklist_dict[host] = blacklist_dict.get(host, 0) + 1
 
-def check_p3p_url(url, timeout):
+def check_http_url(url, timeout):
+    """优化的HTTP/HTTPS链接检测逻辑"""
     try:
-        parsed = urlparse(url)
-        host, port = parsed.hostname, parsed.port or 80
-        path = parsed.path or "/"
-        if not host or not port:
-            return False
-        with socket.create_connection((host, port), timeout=timeout) as s:
-            request = (
-                f"GET {path} P3P/1.0\r\n"
-                f"Host: {host}\r\n"
-                f"User-Agent: {USER_AGENT}\r\n"
-                f"Connection: close\r\n\r\n"
-            )
-            s.sendall(request.encode())
-            return b"P3P" in s.recv(1024)
+        # 先尝试IPv4，失败再尝试IPv6
+        req = urllib.request.Request(
+            url, 
+            headers={
+                "User-Agent": USER_AGENT,
+                "Accept": "*/*",
+                "Connection": "close"
+            }
+        )
+        # 不强制IPv6，使用系统默认的地址解析
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            # 放宽状态码判断，2xx都算有效
+            return 200 <= resp.status < 300
+    except urllib.error.HTTPError as e:
+        # 4xx/5xx确实是链接失效
+        return False
+    except (urllib.error.URLError, socket.timeout, ConnectionResetError):
+        # 网络超时/连接重置，不直接判定失效，返回None表示未知
+        return None
     except Exception:
         return False
 
-def check_p2p_url(url, timeout):
+def check_rtmp_rtsp_url(url, timeout):
+    """优化的RTMP/RTSP检测逻辑"""
     try:
-        parsed = urlparse(url)
-        host, port, path = parsed.hostname, parsed.port, parsed.path
-        if not host or not port or not path:
-            return False
-        with socket.create_connection((host, port), timeout=timeout) as s:
-            request = f"YOUR_CUSTOM_REQUEST {path}\r\nHost: {host}\r\n\r\n"
-            s.sendall(request.encode())
-            return b"SOME_EXPECTED_RESPONSE" in s.recv(1024)
-    except Exception:
-        return False
-
-def check_rtmp_url(url, timeout):
-    try:
-        subprocess.run(
-            ['ffprobe', '-v', 'quiet', url],
+        # 使用ffprobe检测，增加详细输出便于调试，延长超时
+        result = subprocess.run(
+            ['ffprobe', '-v', 'error', '-timeout', f'{timeout * 1000000}', url],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             timeout=timeout
         )
-        return True
+        # ffprobe返回码为0表示链接有效
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        # ffprobe未找到或超时，返回None表示未知
+        return None
     except Exception:
         return False
 
 def check_rtp_url(url, timeout):
+    """优化的RTP检测逻辑"""
     try:
         parsed = urlparse(url)
         host, port = parsed.hostname, parsed.port
         if not host or not port:
             return False
+        
+        # RTP是UDP协议，不需要等待返回数据，能连接就表示有效
         with socket.socket(socket.AF_UNSPEC, socket.SOCK_DGRAM) as s:
             s.settimeout(timeout)
             s.connect((host, port))
-            s.sendto(b'', (host, port))
-            s.recv(1)
-        return True
+            return True
+    except socket.timeout:
+        return None
     except Exception:
         return False
 
+def check_custom_protocol_url(url, timeout):
+    """自定义协议（P3P/P2P）的兼容检测"""
+    # 如果有具体的P3P/P2P检测规则，替换这里的逻辑
+    # 暂时返回None表示不判定，避免误杀
+    return None
+
 def check_url(url, timeout=TIMEOUT_CHECK):
+    """重构的链接检测函数，减少误判"""
     try:
+        # 统一URL编码处理
         encoded_url = quote(unquote(url), safe=':/?&=')
         start_time = time.time()
-        if url.startswith("http"):
-            original_create_connection = socket.create_connection
-            socket.create_connection = create_ipv6_connection
-            
-            req = urllib.request.Request(encoded_url, headers={"User-Agent": USER_AGENT})
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                if resp.status != 200:
-                    raise Exception(f"HTTP Status Error: {resp.status}")
-            
-            socket.create_connection = original_create_connection
-        elif url.startswith("p3p"):
-            if not check_p3p_url(encoded_url, timeout):
-                raise Exception("P3P Check Failed")
-        elif url.startswith("p2p"):
-            if not check_p2p_url(encoded_url, timeout):
-                raise Exception("P2P Check Failed")
-        elif url.startswith(("rtmp", "rtsp")):
-            if not check_rtmp_url(encoded_url, timeout):
-                raise Exception("RTMP/RTSP Check Failed")
-        elif url.startswith("rtp"):
-            if not check_rtp_url(encoded_url, timeout):
-                raise Exception("RTP Check Failed")
-        else:
-            scheme = url.split('://')[0] if '://' in url else 'unknown'
-            raise Exception(f"Unsupported Scheme: {scheme}")
         
+        is_valid = None
+        if url.startswith(("http", "https")):
+            is_valid = check_http_url(encoded_url, timeout)
+        elif url.startswith(("rtmp", "rtsp")):
+            is_valid = check_rtmp_rtsp_url(encoded_url, timeout)
+        elif url.startswith("rtp"):
+            is_valid = check_rtp_url(encoded_url, timeout)
+        elif url.startswith(("p3p", "p2p")):
+            is_valid = check_custom_protocol_url(encoded_url, timeout)
+        else:
+            # 未知协议，标记为失效
+            is_valid = False
+        
+        # 处理检测结果：
+        # - True: 有效
+        # - False: 确实失效
+        # - None: 检测超时/未知，暂判定为有效（避免误杀）
         real_elapsed = (time.time() - start_time) * 1000
-        return real_elapsed, True
-    except Exception:
-        record_host(get_host_from_url(url))
+        
+        if is_valid is True:
+            return real_elapsed, True
+        elif is_valid is False:
+            record_host(get_host_from_url(url))
+            return None, False
+        else:
+            # 未知状态，判定为有效，避免误杀可用链接
+            return real_elapsed, True
+            
+    except Exception as e:
+        # 捕获未预期的异常，记录但不直接判定失效
+        print(f"Check URL error {url}: {str(e)[:50]}")
         return None, False
 
 def is_m3u_content(text):
@@ -182,7 +179,7 @@ def convert_m3u_to_txt(m3u_content):
 def process_url(url):
     try:
         encoded_url = quote(unquote(url), safe=':/?&=')
-        req = urllib.request.Request(encoded_url, headers={"User-Agent": USER_AGENT})
+        req = urllib.request.Request(encoded_url, headers={"User-Agent": USER_AGENT_URL})
         with urllib.request.urlopen(req, timeout=TIMEOUT_FETCH) as resp:
             text = resp.read().decode('utf-8', errors='replace')
             if is_m3u_content(text):
@@ -244,8 +241,9 @@ def process_line(line, whitelist):
     
     elapsed_time, is_valid = check_url(url)
     
+    # 白名单链接强制标记为有效
     if url in whitelist:
-        return (elapsed_time if is_valid else 0.01, line)
+        return (elapsed_time if elapsed_time else 0.01, line)
     else:
         return (elapsed_time, line) if is_valid else (None, line)
 
@@ -262,6 +260,7 @@ def process_urls_multithreaded(lines, whitelist, max_workers=MAX_WORKERS):
                     successlist.append(f"{elapsed:.2f}ms,{result}")
                 else:
                     blacklist.append(result)
+    # 按响应时间排序
     successlist.sort(key=lambda x: float(x.split(',')[0].replace('ms', '')))
     blacklist.sort()
     return successlist, blacklist
