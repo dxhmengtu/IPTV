@@ -917,8 +917,7 @@ class StreamChecker:
         """主函数"""
         logger.info("开始直播源检测和域名质量分析...")
         logger.info(f"配置: 超时={Config.TIMEOUT_CHECK}s, 线程={Config.MAX_WORKERS}, 重试={Config.MAX_RETRIES}")
-        logger.info(f"超时处理: {'跳过' if Config.SKIP_TIMEOUT_URLS else '算作失败'}")
-    
+        
         checker = StreamChecker()
     
         try:
