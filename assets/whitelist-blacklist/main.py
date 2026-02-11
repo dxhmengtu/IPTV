@@ -454,8 +454,9 @@ class StreamChecker:
         
         for url in urls:
             try:
+                encoded_url = quote(unquote(url), safe=':/?&=#')
                 req = urllib.request.Request(
-                    url,
+                    encoded_url,
                     headers={"User-Agent": Config.USER_AGENT_URL}
                 )
                 
