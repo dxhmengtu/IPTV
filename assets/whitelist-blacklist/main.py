@@ -50,7 +50,6 @@ class Config:
     
     # 检测策略
     ENABLE_SMART_DETECTION = True  # 启用智能检测
-    SKIP_TIMEOUT_URLS = False      # 是否跳过超时URL（False表示超时算失败）
 
 
 class DomainAnalyzer:
@@ -621,11 +620,9 @@ class StreamChecker:
                         # 超时/未知
                         timeout_list.append(line)
                         timeout_count += 1
-                        # 根据配置决定超时的处理方式
-                        if not Config.SKIP_TIMEOUT_URLS:
-                            # 超时算失败
-                            failed_list.append(line)
-                        # 如果SKIP_TIMEOUT_URLS为True，则超时URL不会进入任何列表
+                        # 超时算失败
+                        failed_list.append(line)
+                        failed_count += 1
                     
                     if processed % 50 == 0 or processed == total:
                         logger.info(f"进度: {processed}/{total} | 成功: {success_count} | 超时: {timeout_count}  | 失败: {failed_count}")
@@ -808,7 +805,8 @@ class StreamChecker:
             "blacklist_auto": os.path.join(current_dir, 'blacklist_auto.txt'),
             "whitelist_manual": os.path.join(current_dir, 'whitelist_manual.txt'),
             "whitelist_auto": os.path.join(current_dir, 'whitelist_auto.txt'),
-            "whitelist_auto_tv": os.path.join(current_dir, 'whitelist_auto_tv.txt')
+            "whitelist_auto_tv": os.path.join(current_dir, 'whitelist_auto_tv.txt'),
+            "timelist_auto": os.path.join(current_dir, 'timelist_auto.txt')
         }
     
     def save_results(self, success_list: List[str], failed_list: List[str], timeout_list: List[str]):
@@ -833,30 +831,29 @@ class StreamChecker:
             "whitelist,#genre#"
         ] + success_tv
         
-        # 准备失败列表（包括超时的，根据配置）
+        # 准备失败列表（包括超时的）
         failed_output = [
             "更新时间,#genre#",
             version,
             "",
             "blacklist,#genre#"
         ] + failed_list
+
+        # 准备超时列表
+        timeout_output = [
+                "更新时间,#genre#",
+                version,
+                "",
+                "timeout,#genre#"
+            ] + timeout_list
         
         # 保存文件
         file_paths = self.get_file_paths()
         self.write_list(file_paths["whitelist_auto"], success_output)
         self.write_list(file_paths["whitelist_auto_tv"], success_tv_output)
         self.write_list(file_paths["blacklist_auto"], failed_output)
-        
-        # 保存超时列表到单独文件（如果需要）
-        if timeout_list and Config.SKIP_TIMEOUT_URLS:
-            timeout_output = [
-                "更新时间,#genre#",
-                version,
-                "",
-                "timeout,#genre#"
-            ] + timeout_list
-            self.write_list("timeout_list.txt", timeout_output)
-            logger.info(f"超时链接已保存到: timeout_list.txt ({len(timeout_list)}个)")
+        self.write_list(file_paths["timelist_auto"], timeout_output)
+
     
     def write_list(self, file_path: str, data_list: List[str]):
         """写入列表到文件"""
@@ -867,4 +864,74 @@ class StreamChecker:
         except Exception as e:
             logger.error(f"写入文件失败 {file_path}: {e}")
     
-    def print_statistics(self, cleaned_lines: List[str], success_list
+    def print_statistics(self, cleaned_lines: List[str], success_list: List[str], 
+                        failed_list: List[str], timeout_list: List[str]):
+        """打印统计信息"""
+        end_time = datetime.now()
+        elapsed = end_time - self.timestart
+        mins, secs = int(elapsed.total_seconds() // 60), int(elapsed.total_seconds() % 60)
+        
+        total_detected = len(success_list) + len(failed_list)
+        if Config.SKIP_TIMEOUT_URLS:
+            total_detected += len(timeout_list)
+        
+        logger.info("=" * 60)
+        logger.info("最终统计:")
+        logger.info(f"  总耗时: {mins}分{secs}秒")
+        logger.info(f"  清理后链接数: {len(cleaned_lines)}")
+        logger.info(f"  检测链接数: {total_detected}")
+        logger.info(f"  成功链接数: {len(success_list)}")
+        logger.info(f"  失败链接数: {len(failed_list)}")
+        logger.info(f"  超时链接数: {len(timeout_list)}")
+        
+        if total_detected > 0:
+            success_rate = len(success_list) / total_detected * 100
+            logger.info(f"  整体成功率: {success_rate:.1f}%")
+            
+            if timeout_list:
+                timeout_rate = len(timeout_list) / total_detected * 100
+                logger.info(f"  超时率: {timeout_rate:.1f}%")
+        
+        # 显示最快的5个和最慢的5个链接
+        if success_list:
+            sorted_success = sorted(success_list, 
+                                  key=lambda x: float(x.split(',')[0].replace('ms', '')))
+            
+            if len(sorted_success) >= 5:
+                logger.info(f"  最快5个链接:")
+                for i, link in enumerate(sorted_success[:5]):
+                    parts = link.split(',', 1)
+                    time_str = parts[0]
+                    name = parts[1].split(',')[0] if ',' in parts[1] else "Unknown"
+                    logger.info(f"    {i+1}. {time_str} - {name[:30]}")
+                
+                logger.info(f"  最慢5个链接:")
+                for i, link in enumerate(sorted_success[-5:][::-1]):
+                    parts = link.split(',', 1)
+                    time_str = parts[0]
+                    name = parts[1].split(',')[0] if ',' in parts[1] else "Unknown"
+                    logger.info(f"    {i+1}. {time_str} - {name[:30]}")
+        
+        logger.info("=" * 60)
+
+
+    def main():
+        """主函数"""
+        logger.info("开始直播源检测和域名质量分析...")
+        logger.info(f"配置: 超时={Config.TIMEOUT_CHECK}s, 线程={Config.MAX_WORKERS}, 重试={Config.MAX_RETRIES}")
+        logger.info(f"超时处理: {'跳过' if Config.SKIP_TIMEOUT_URLS else '算作失败'}")
+    
+        checker = StreamChecker()
+    
+        try:
+            checker.run()
+        except KeyboardInterrupt:
+            logger.info("检测被用户中断")
+        except Exception as e:
+            logger.error(f"检测过程发生错误: {e}", exc_info=True)
+        finally:
+            logger.info("检测结束")
+
+
+if __name__ == "__main__":
+    main()
