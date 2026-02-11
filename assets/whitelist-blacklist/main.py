@@ -872,8 +872,6 @@ class StreamChecker:
         mins, secs = int(elapsed.total_seconds() // 60), int(elapsed.total_seconds() % 60)
         
         total_detected = len(success_list) + len(failed_list)
-        if Config.SKIP_TIMEOUT_URLS:
-            total_detected += len(timeout_list)
         
         logger.info("=" * 60)
         logger.info("最终统计:")
