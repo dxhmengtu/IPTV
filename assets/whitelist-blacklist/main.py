@@ -8,12 +8,13 @@ import socket
 import subprocess
 
 timestart = datetime.now()
-# 优化用户代理，使用更通用的浏览器标识
+# 数据源UA
 USER_AGENT_URL = "PostmanRuntime-ApipostRuntime/1.1.0"
+# 直播数据UA
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-# 源链接超时
+# 数据源超时
 TIMEOUT_FETCH = 5
-# 数据请求超时
+# 直播数据超时
 TIMEOUT_CHECK = 5
 # 请求线程数
 MAX_WORKERS = 50
@@ -89,14 +90,14 @@ def check_http_url_with_ip_version(url, timeout, ip_version):
     """指定IP版本检测HTTP/HTTPS链接"""
     try:
         req = urllib.request.Request(
-            url, 
+            url,
             headers={
                 "User-Agent": USER_AGENT,
                 "Accept": "*/*",
                 "Connection": "close"
             }
         )
-        
+
         # 保存原始解析器
         original_getaddrinfo = socket.getaddrinfo
         try:
@@ -107,7 +108,7 @@ def check_http_url_with_ip_version(url, timeout, ip_version):
         finally:
             # 恢复原始解析器
             socket.getaddrinfo = original_getaddrinfo
-            
+
     except Exception:
         return False
 
@@ -116,21 +117,20 @@ def check_http_url(url, timeout):
     try:
         # 获取主机地址
         host = get_host_from_url(url)
-        
+
         # 1. 判断IP类型
         if is_ipv6_address(host):
             # URL是IPv6地址，仅检测IPv6，失败不降级
             return check_http_url_with_ip_version(url, timeout, 6)
-            
+
         elif is_ipv4_address(host):
             # URL是IPv4地址，仅检测IPv4，失败不降级
             return check_http_url_with_ip_version(url, timeout, 4)
-            
+
         else:
             # 域名形式，先尝试IPv4（无降级）
-            # 注意：域名场景下仅检测IPv4，如需优先IPv6可修改此处
             return check_http_url_with_ip_version(url, timeout, 4)
-            
+
     except urllib.error.HTTPError as e:
         return False
     except (urllib.error.URLError, socket.timeout, ConnectionResetError):
@@ -163,7 +163,7 @@ def check_rtp_url(url, timeout):
         host, port = parsed.hostname, parsed.port
         if not host or not port:
             return False
-        
+
         # 判断IP类型，仅使用对应类型检测
         if is_ipv6_address(host):
             # IPv6地址，仅用IPv6 socket
@@ -189,13 +189,13 @@ def check_p3p_url(url, timeout):
         path = parsed.path or "/"
         if not host or not port:
             return False
-        
+
         # 判断IP类型，使用对应socket类型
         if is_ipv6_address(host):
             s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         else:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            
+
         with s:
             s.settimeout(timeout)
             s.connect((host, port))
@@ -216,13 +216,13 @@ def check_p2p_url(url, timeout):
         host, port, path = parsed.hostname, parsed.port, parsed.path
         if not host or not port or not path:
             return False
-        
+
         # 判断IP类型，使用对应socket类型
         if is_ipv6_address(host):
             s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         else:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            
+
         with s:
             s.settimeout(timeout)
             s.connect((host, port))
@@ -238,7 +238,7 @@ def check_url(url, timeout=TIMEOUT_CHECK):
         # 统一URL编码处理
         encoded_url = quote(unquote(url), safe=':/?&=')
         start_time = time.time()
-        
+
         is_valid = None
         if url.startswith(("http", "https")):
             is_valid = check_http_url(encoded_url, timeout)
@@ -253,13 +253,13 @@ def check_url(url, timeout=TIMEOUT_CHECK):
         else:
             # 未知协议，标记为失效
             is_valid = False
-        
+
         # 处理检测结果：
         # - True: 有效
         # - False: 确实失效
         # - None: 检测超时/未知，暂判定为有效（避免误杀）
         real_elapsed = (time.time() - start_time) * 1000
-        
+
         if is_valid is True:
             return real_elapsed, True
         elif is_valid is False:
@@ -268,7 +268,7 @@ def check_url(url, timeout=TIMEOUT_CHECK):
         else:
             # 未知状态，判定为有效，避免误杀可用链接
             return real_elapsed, True
-            
+
     except Exception as e:
         # 捕获未预期的异常，记录但不直接判定失效
         print(f"Check URL error {url}: {str(e)[:50]}")
@@ -349,9 +349,9 @@ def process_line(line, whitelist):
         return None, None
     name, url = parts
     url = url.strip()
-    
+
     elapsed_time, is_valid = check_url(url)
-    
+
     # 白名单链接强制标记为有效
     if url in whitelist:
         return (elapsed_time if elapsed_time else 0.01, line)
@@ -360,20 +360,37 @@ def process_line(line, whitelist):
 
 def process_urls_multithreaded(lines, whitelist, max_workers=MAX_WORKERS):
     successlist, blacklist = [], []
+    total = len(lines)
+    processed = 0
+    ok = 0
+    ng = 0
+
     if not lines:
         return successlist, blacklist
+
+    print(f"\n正在开始检测，总计：{total} 条")
+    print("-" * 50)
+
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(process_line, line, whitelist): line for line in lines}
         for future in as_completed(futures):
+            processed += 1
             elapsed, result = future.result()
             if result:
                 if elapsed is not None:
                     successlist.append(f"{elapsed:.2f}ms,{result}")
+                    ok += 1
                 else:
                     blacklist.append(result)
+                    ng += 1
+
+            # 实时进度
+            print(f"\r进度：{processed}/{total} | 成功：{ok} | 失败：{ng}", end="")
+
     # 按响应时间排序
     successlist.sort(key=lambda x: float(x.split(',')[0].replace('ms', '')))
     blacklist.sort()
+    print("\n" + "-" * 50)
     return successlist, blacklist
 
 def write_list(file_path, data_list):
@@ -409,7 +426,7 @@ def get_file_paths():
 if __name__ == "__main__":
     file_paths = get_file_paths()
     remote_urls = read_txt_to_array(file_paths["urls"])
-    
+
     for url in remote_urls:
         if url.startswith("http"):
             print(f"Process remote URL: {url}")
