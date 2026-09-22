@@ -231,9 +231,6 @@
   <channel id="348">
     <display-name lang="zh">优漫卡通</display-name>
   </channel>
-  <channel id="349">
-    <display-name lang="zh">江苏新闻</display-name>
-  </channel>
   <channel id="351">
     <display-name lang="zh">江苏综艺</display-name>
   </channel>
@@ -788,12 +785,6 @@
   </channel>
   <channel id="2002">
     <display-name lang="zh">湖南爱晚</display-name>
-  </channel>
-  <channel id="2007">
-    <display-name lang="zh">山东文旅</display-name>
-  </channel>
-  <channel id="2008">
-    <display-name lang="zh">山东新闻</display-name>
   </channel>
   <channel id="2011">
     <display-name lang="zh">江西都市</display-name>
@@ -32804,6 +32795,90 @@
       <desc>《晚间播报》是一档新闻类节目。</desc>
     </programme>
     <programme start="20260922232100 +0800" stop="20260923011200 +0800" channel="59">
+      <title>午夜剧场</title>
+      <desc>各个卫视凌晨播出电视剧的剧场。</desc>
+    </programme>
+    <programme start="20260922004800 +0800" stop="20260922070000 +0800" channel="1955">
+      <title>午夜剧场</title>
+      <desc>各个卫视凌晨播出电视剧的剧场。</desc>
+    </programme>
+    <programme start="20260922070000 +0800" stop="20260922073000 +0800" channel="1955">
+      <title>经视法案</title>
+      <desc>一档大型电视法制栏目,栏目以其贴近民生的精准定位,新颖独特的新闻视角,客观详实的节目内容。</desc>
+    </programme>
+    <programme start="20260922073000 +0800" stop="20260922080000 +0800" channel="1955">
+      <title>百姓1时间</title>
+      <desc>百姓1时间青海新闻资讯。</desc>
+    </programme>
+    <programme start="20260922080000 +0800" stop="20260922081100 +0800" channel="1955">
+      <title>晚间播报</title>
+      <desc>《晚间播报》是一档新闻类节目。</desc>
+    </programme>
+    <programme start="20260922081100 +0800" stop="20260922093000 +0800" channel="1955">
+      <title>白天剧场</title>
+      <desc>播出电视剧的剧场。</desc>
+    </programme>
+    <programme start="20260922093000 +0800" stop="20260922105000 +0800" channel="1955">
+      <title>白天剧场</title>
+      <desc>播出电视剧的剧场。</desc>
+    </programme>
+    <programme start="20260922105000 +0800" stop="20260922121000 +0800" channel="1955">
+      <title>白天剧场</title>
+      <desc>播出电视剧的剧场。</desc>
+    </programme>
+    <programme start="20260922121000 +0800" stop="20260922122500 +0800" channel="1955">
+      <title>大美青海</title>
+      <desc>大美青海，绿色中国，认识青海从这里开始，青海的美丽从这里走出——大美青海，美在地域辽阔、山川壮丽，这是青海的形象美；大美青海，美在风俗淳朴、人民可爱，这是青海的人文美；大美青海，美在历史悠久、文化多元，这是青海的内涵美；大美青海，美在地位重要、蓄势勃发，这是青海的发展美。青海卫视大美青海栏目组每天和你如约而至，带您领略青海风光，品味青海魅力，记录青海足音，触摸青海未来。</desc>
+    </programme>
+    <programme start="20260922122500 +0800" stop="20260922133300 +0800" channel="1955">
+      <title>百姓1时间</title>
+      <desc>百姓1时间青海新闻资讯。</desc>
+    </programme>
+    <programme start="20260922133300 +0800" stop="20260922141000 +0800" channel="1955">
+      <title>经视法案</title>
+      <desc>一档大型电视法制栏目,栏目以其贴近民生的精准定位,新颖独特的新闻视角,客观详实的节目内容。</desc>
+    </programme>
+    <programme start="20260922141000 +0800" stop="20260922151000 +0800" channel="1955">
+      <title>中华好养生</title>
+      <desc>养生栏目。</desc>
+    </programme>
+    <programme start="20260922151000 +0800" stop="20260922161500 +0800" channel="1955">
+      <title>白天剧场</title>
+      <desc>播出电视剧的剧场。</desc>
+    </programme>
+    <programme start="20260922161500 +0800" stop="20260922172000 +0800" channel="1955">
+      <title>白天剧场</title>
+      <desc>播出电视剧的剧场。</desc>
+    </programme>
+    <programme start="20260922172000 +0800" stop="20260922180000 +0800" channel="1955">
+      <title>小神龙俱乐部</title>
+      <desc>小神龙俱乐部 (The Dragon Club) 是迪士尼公司制作并运营的中国儿童节目，在中国大陆约40多家城市电视台每天播出。小神龙俱乐部1994年9月19日由美国广播公司 (ABC) 创办，后来 (1996) 年 ABC 被迪士尼收购，小神龙俱乐部开始播出大量迪士尼的节目，包括动画片和自创儿童节目，并正式成为迪士尼动画的家。除了动画片之外，小神龙俱乐部也有播出自制的互动节目。目前的主持人是榕榕。</desc>
+    </programme>
+    <programme start="20260922180000 +0800" stop="20260922193300 +0800" channel="1955">
+      <title>百姓1时间</title>
+      <desc>百姓1时间青海新闻资讯。</desc>
+    </programme>
+    <programme start="20260922193300 +0800" stop="20260922201200 +0800" channel="1955">
+      <title>经视法案</title>
+      <desc>一档大型电视法制栏目,栏目以其贴近民生的精准定位,新颖独特的新闻视角,客观详实的节目内容。</desc>
+    </programme>
+    <programme start="20260922201200 +0800" stop="20260922211100 +0800" channel="1955">
+      <title>首播剧场</title>
+      <desc>此阶段播放精彩电视剧内容。</desc>
+    </programme>
+    <programme start="20260922211100 +0800" stop="20260922221100 +0800" channel="1955">
+      <title>首播剧场</title>
+      <desc>此阶段播放精彩电视剧内容。</desc>
+    </programme>
+    <programme start="20260922221100 +0800" stop="20260922231300 +0800" channel="1955">
+      <title>百姓1时间</title>
+      <desc>百姓1时间青海新闻资讯。</desc>
+    </programme>
+    <programme start="20260922231300 +0800" stop="20260922235800 +0800" channel="1955">
+      <title>经视法案</title>
+      <desc>一档大型电视法制栏目,栏目以其贴近民生的精准定位,新颖独特的新闻视角,客观详实的节目内容。</desc>
+    </programme>
+    <programme start="20260922235800 +0800" stop="20260923004800 +0800" channel="1955">
       <title>午夜剧场</title>
       <desc>各个卫视凌晨播出电视剧的剧场。</desc>
     </programme>
